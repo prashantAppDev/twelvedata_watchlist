@@ -1,23 +1,66 @@
-import logo from './logo.svg';
 import './App.css';
+import { w3cwebsocket as W3CWebSocket } from 'websocket';
+import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
+import { watchlistPriceUpdateAction } from './redux/actions/watchlistAction';
+import { Watchlist } from './components/Watchlist';
+import axios from 'axios';
+
+const client = new W3CWebSocket(
+  `wss://ws.twelvedata.com/v1/quotes/price?apikey=${process.env.REACT_APP_API_KEY}`
+);
+
+const request = {
+  action: 'subscribe',
+  params: {
+    symbols: 'AAPL,INFY,QQQ,MQ1,IXIC,VFIAX,TRP,SVI,MEDV',
+  },
+};
 
 function App() {
+  const dispatch = useDispatch();
+  const watchListSymbols = [
+    'AAPL',
+    'INFY',
+    'QQQ',
+    'MQ1',
+    'IXIC',
+    'VFIAX',
+    'TRP',
+    'SVI',
+    'MEDV',
+  ];
+
+  useEffect(() => {
+    watchListSymbols.forEach((symbol) => {
+      axios
+        .get(
+          `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${process.env.REACT_APP_API_KEY}`
+        )
+        .then((response) => {
+          const payload = {
+            symbol: 'AAPL',
+            price: response.data.price,
+          };
+          dispatch(watchlistPriceUpdateAction(payload));
+        });
+    });
+
+    client.onopen = () => {
+      client.send(JSON.stringify(request));
+    };
+
+    client.onmessage = (message) => {
+      let messageJson = JSON.parse(message.data);
+      if (messageJson.event === 'price') {
+        dispatch(watchlistPriceUpdateAction(messageJson));
+      }
+    };
+  }, []);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <Watchlist />
     </div>
   );
 }
